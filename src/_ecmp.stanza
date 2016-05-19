@@ -1,0 +1,58 @@
+; get files in cur dir...
+defn files () -> Seq<String> :
+    call-system("touch /tmp/files.tmp & ls | column -c 1 > /tmp/files.tmp") ; Save output of column'd ls with call sys..
+    val files = split(slurp("/tmp/files.tmp"), "\n") ;Split by newline...
+    delete-file("/tmp/files.tmp")
+    files   
+
+defn stanza-source-files () -> Seq<String> : 
+    filter({suffix?(_, ".stanza")}, files()) ;Filter the files, return those who only end in .stanza
+
+defn output-file () -> String:
+    val resp = find({prefix?(_, "_")}, stanza-source-files()) ; Get the tuple'd result of findinf the output file
+    resp as String when not (resp is False) else "default-comp.stanza"
+
+defn main () : 
+    var source-files = stanza-source-files()
+    var o-file-data = to-array<String>(split(output-file(), "."))[0]
+    var o-file = o-file-data[1 to length(o-file-data)]
+    var optimize = false 
+    var verbose = false 
+    var silent = false
+    var custom-name = false 
+    val args = command-line-arguments()
+    var name-index = -1
+    for flag in args do :
+        if prefix?(flag, "-") :
+            if flag == "-o" or flag == "--optimize" :
+                optimize = true
+            else if flag == "-v" or flag == "--verbose" :
+                verbose = false 
+            else if flag == "-s" or flag == "--silent" :
+                silent = true
+            else if flag == "-n" or flag == "--name" :
+                custom-name = true
+                name-index = index-of!(args, flag)
+    if not silent :
+        println("Compiling %_..." % [o-file])
+    if custom-name :
+        if length(args) < name-index or name-index < 0 :
+            println("Found no custom name!")
+            exit(1)
+        else :
+            o-file = args[name-index + 1]
+    val timer = MillisecondTimer("compile-timer")
+    if not silent :
+        for stanza-file in source-files do :
+            println("found stanza-source file  \"%_\"" % [stanza-file])
+    start(timer)
+    try :
+        call-system(to-string("stanza %_ -o %_ %_ %_" % [string-join(source-files " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""]))
+    catch (e:Exception) : 
+        println("Failed to compile!")
+        exit(1)
+    stop(timer)
+    if not silent :
+        println("Done! Took %_ ms." % [time(timer)])
+
+main()
