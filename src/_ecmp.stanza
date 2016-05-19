@@ -13,12 +13,12 @@ defn output-file () -> String:
     resp as String when not (resp is False) else "default-comp.stanza"
 
 defn main () : 
-    var source-files = stanza-source-files()
     var o-file-data = to-array<String>(split(output-file(), "."))[0]
     var o-file = o-file-data[1 to length(o-file-data)]
     var optimize = false 
     var verbose = false 
     var silent = false
+    var run = false
     var custom-name = false 
     val args = command-line-arguments()
     var name-index = -1
@@ -30,6 +30,8 @@ defn main () :
                 verbose = false 
             else if flag == "-s" or flag == "--silent" :
                 silent = true
+            else if flag == "-r" or flag == "--run" :
+                run = true
             else if flag == "-n" or flag == "--name" :
                 custom-name = true
                 name-index = index-of!(args, flag)
@@ -43,15 +45,17 @@ defn main () :
             o-file = args[name-index + 1]
     val timer = MillisecondTimer("compile-timer")
     if not silent :
-        for stanza-file in source-files do :
+        for stanza-file in stanza-source-files() do :
             println("found stanza-source file  \"%_\"" % [stanza-file])
     start(timer)
     try :
-        call-system(to-string("stanza %_ -o %_ %_ %_" % [string-join(source-files " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""]))
+        call-system(to-string("stanza %_ -o %_ %_ %_" % [string-join(stanza-source-files(), " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""]))
     catch (e:Exception) : 
         println("Failed to compile!")
         exit(1)
     stop(timer)
+    if run :
+        call-system(to-string("./%_" % [o-file]))
     if not silent :
         println("Done! Took %_ ms." % [time(timer)])
 

@@ -1,4 +1,4 @@
-sy **C** o **MP** iler for  stanza
+**E** asy **C** o **MP** iler for     stanza
 
 
 ----------
@@ -11,3 +11,5 @@ flags
  2. -v / --verbose | verbose 
  3. -s / --silent | silent
  4. -n / --name | custom name
+ 5. -r / --run | run after compiling
+
