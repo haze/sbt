@@ -1,5 +1,5 @@
-**E** asy **C** o **MP** iler for     stanza
 
+**SBT**  stanza build tool
 
 ----------
 just gets all files that have .stanza and links em with the stanza compiler.

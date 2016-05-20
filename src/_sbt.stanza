@@ -38,7 +38,17 @@ defn main () :
     var dir-index = -1
     for flag in args do :
         if prefix?(flag, "-") :
-            if flag == "-o" or flag == "--optimize" :
+            if flag == "-h" or flag == "--help" :
+                println("usage: sbt [flags]")
+                println("-h / --help | display this help")
+                println("-d / --dir | specify source directory")
+                println("-r / --run | run after compiling")
+                println("-s / --silent | makes sbt shut up")
+                println("-v / --verbose | use verbose flag for compiler")
+                println("-o / --optimize | use optimize flag with compiler")
+                println("-n / --name | use custom name for output file")
+                exit(0)
+            else if flag == "-o" or flag == "--optimize" :
                 optimize = true
             else if flag == "-v" or flag == "--verbose" :
                 verbose = false 
@@ -52,6 +62,8 @@ defn main () :
             else if flag == "-n" or flag == "--name" :
                 custom-name = true
                 name-index = index-of!(args, flag)
+            else :
+                println("Unrecognized flag %_" % [flag])
     var cust-dir = args[dir-index + 1] when dir else ""
     var o-file-data = to-array<String>(split(output-file(cust-dir), "."))[0]
     var o-file = append("bin/", o-file-data[1 to length(o-file-data)])
