@@ -1,27 +1,41 @@
 ; get files in cur dir...
-defn files () -> Seq<String> :
-    call-system("touch /tmp/files.tmp & ls | column -c 1 > /tmp/files.tmp") ; Save output of column'd ls with call sys..
-    val files = split(slurp("/tmp/files.tmp"), "\n") ;Split by newline...
+defn files (dir:String) -> Array<String> :
+    call-system(to-string("touch /tmp/files.tmp & ls %_ | column -c 1 > /tmp/files.tmp" % [dir])) ; Save output of column'd ls with call sys..
+    val files = to-array<String>(split(slurp("/tmp/files.tmp"), "\n")) ;Split by newline..
     delete-file("/tmp/files.tmp")
-    files   
+    map<String>({append(append(dir, "/") when not contains(dir, "/") else dir, _)}, files)
 
-defn stanza-source-files () -> Seq<String> : 
-    filter({suffix?(_, ".stanza")}, files()) ;Filter the files, return those who only end in .stanza
+defn stanza-source-files (dir:String) -> Seq<String> : 
+    filter({suffix?(_, ".stanza")}, files(dir)) ;Filter the files, return those who only end in .stanza
 
-defn output-file () -> String:
-    val resp = find({prefix?(_, "_")}, stanza-source-files()) ; Get the tuple'd result of findinf the output file
-    resp as String when not (resp is False) else "default-comp.stanza"
+defn stanza-source-files-no-dir (dir:String) -> Vector<String> :
+    val vec = Vector<String>()    
+    for stanza-file in files(dir) do :
+        if not contains(stanza-file, "/") :
+            add(vec, stanza-file)    
+        else :
+            val data = to-array<String>(split(stanza-file, "/"))
+            val last = data[length(data) - 1]
+            add(vec, last)
+    vec
+
+defn contains (str:String, look:String) -> True|False :
+    index-of-chars(str, look) != false
+
+defn output-file (dir:String) -> String:
+    val resp = find({prefix?(_, "_")}, stanza-source-files-no-dir(dir)) ; Get the result, T|False...
+    resp as String when not (resp is False) else "_default-comp.stanza"
 
 defn main () : 
-    var o-file-data = to-array<String>(split(output-file(), "."))[0]
-    var o-file = o-file-data[1 to length(o-file-data)]
     var optimize = false 
     var verbose = false 
+    var dir = false 
     var silent = false
     var run = false
     var custom-name = false 
     val args = command-line-arguments()
     var name-index = -1
+    var dir-index = -1
     for flag in args do :
         if prefix?(flag, "-") :
             if flag == "-o" or flag == "--optimize" :
@@ -32,9 +46,15 @@ defn main () :
                 silent = true
             else if flag == "-r" or flag == "--run" :
                 run = true
+            else if flag == "-d" or flag == "--dir" :
+                dir = true
+                dir-index = index-of!(args, flag)
             else if flag == "-n" or flag == "--name" :
                 custom-name = true
                 name-index = index-of!(args, flag)
+    var cust-dir = args[dir-index + 1] when dir else ""
+    var o-file-data = to-array<String>(split(output-file(cust-dir), "."))[0]
+    var o-file = append("bin/", o-file-data[1 to length(o-file-data)])
     if not silent :
         println("Compiling %_..." % [o-file])
     if custom-name :
@@ -44,12 +64,15 @@ defn main () :
         else :
             o-file = args[name-index + 1]
     val timer = MillisecondTimer("compile-timer")
+    if not file-exists?("bin") : ; we aren't cavemen are we?
+        call-system("mkdir bin")
     if not silent :
-        for stanza-file in stanza-source-files() do :
+        for stanza-file in stanza-source-files(cust-dir) do : ; yo im lazy as-fk
             println("found stanza-source file  \"%_\"" % [stanza-file])
     start(timer)
     try :
-        call-system(to-string("stanza %_ -o %_ %_ %_" % [string-join(stanza-source-files(), " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""]))
+        val str = to-string("stanza %_ -o %_ %_ %_" % [string-join(stanza-source-files(cust-dir), " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""])
+        call-system(str)
     catch (e:Exception) : 
         println("Failed to compile!")
         exit(1)

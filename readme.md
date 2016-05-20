@@ -12,4 +12,5 @@ flags
  3. -s / --silent | silent
  4. -n / --name | custom name
  5. -r / --run | run after compiling
+ 6. -d / --dir | specify a source directory
 
