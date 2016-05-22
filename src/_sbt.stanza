@@ -1,9 +1,10 @@
 ; get files in cur dir...
-defn files (dir:String) -> Array<String> :
+defn files (dir:String) -> List<String> :
     call-system(to-string("touch /tmp/files.tmp & ls %_ | column -c 1 > /tmp/files.tmp" % [dir])) ; Save output of column'd ls with call sys..
-    val files = to-array<String>(split(slurp("/tmp/files.tmp"), "\n")) ;Split by newline..
+    val files-seq = split(slurp("/tmp/files.tmp"), "\n")  
+    val files = to-list(files-seq) ;Split by newline..
     delete-file("/tmp/files.tmp")
-    map<String>({append(append(dir, "/") when not contains(dir, "/") else dir, _)}, files)
+    map({append(append(dir, "/") when not contains(dir, "/") else dir, _)}, files)
 
 defn stanza-source-files (dir:String) -> Seq<String> : 
     filter({suffix?(_, ".stanza")}, files(dir)) ;Filter the files, return those who only end in .stanza
@@ -19,11 +20,22 @@ defn stanza-source-files-no-dir (dir:String) -> Vector<String> :
             add(vec, last)
     vec
 
+
+defn c-files? (dir:String) -> True|False :
+    length(c-files(dir)) > 0    
+
+defn c-files (dir:String) -> List<String> : 
+    to-list(filter({suffix?(_, ".c")}, files(dir)))
+
 defn contains (str:String, look:String) -> True|False :
     index-of-chars(str, look) != false
 
+defn last-index-of (source:String, by:String) -> String :
+    val arr = to-array<String>(split(source, by))
+    arr[length(arr) - 1]
+
 defn output-file (dir:String) -> String:
-    val resp = find({prefix?(_, "_")}, stanza-source-files-no-dir(dir)) ; Get the result, T|False...
+    val resp = find({prefix?(last-index-of(_, "/"), "_")}, stanza-source-files-no-dir(dir)) ; Get the result, T|False...
     resp as String when not (resp is False) else "_default-comp.stanza"
 
 defn main () : 
@@ -75,16 +87,26 @@ defn main () :
             exit(1)
         else :
             o-file = args[name-index + 1]
+    println("output = \"%_\"" % [o-file])
     val timer = MillisecondTimer("compile-timer")
     if not file-exists?("bin") : ; we aren't cavemen are we?
         call-system("mkdir bin")
     if not silent :
         for stanza-file in stanza-source-files(cust-dir) do : ; yo im lazy as-fk
             println("found stanza-source file  \"%_\"" % [stanza-file])
+        if c-files?(cust-dir) :
+            for c-file in c-files(cust-dir) do :
+                println("found c file \"%_\"" % [c-file])
     start(timer)
     try :
-        val str = to-string("stanza %_ -o %_ %_ %_" % [string-join(stanza-source-files(cust-dir), " "), o-file, "-optimize" when optimize else "", "-verbose" when verbose else ""])
-        call-system(str)
+        var base-str = to-string("stanza %_ -o %_" % [string-join(stanza-source-files(cust-dir), ""), o-file])
+        if optimize :
+            base-str = append(base-str, " -optimize")
+        if verbose :
+            base-str = append(base-str, " -verbose")
+        if c-files?(cust-dir) :
+            base-str = append(base-str, to-string("-ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
+        call-system(base-str)
     catch (e:Exception) : 
         println("Failed to compile!")
         exit(1)
