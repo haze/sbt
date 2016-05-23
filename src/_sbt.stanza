@@ -4,7 +4,7 @@ defn files (dir:String) -> List<String> :
     val files-seq = split(slurp("/tmp/files.tmp"), "\n")  
     val files = to-list(files-seq) ;Split by newline..
     delete-file("/tmp/files.tmp")
-    map({append(append(dir, "/") when not contains(dir, "/") else dir, _)}, files)
+    map({append(append(dir, "/") when not contains(dir, "/") else append(dir, "/"), _)}, files)
 
 defn stanza-source-files (dir:String) -> Seq<String> : 
     filter({suffix?(_, ".stanza")}, files(dir)) ;Filter the files, return those who only end in .stanza
@@ -99,13 +99,14 @@ defn main () :
                 println("found c file \"%_\"" % [c-file])
     start(timer)
     try :
-        var base-str = to-string("stanza %_ -o %_" % [string-join(stanza-source-files(cust-dir), ""), o-file])
+        var base-str = to-string("stanza %_ -o %_" % [string-join(stanza-source-files(cust-dir), " "), o-file])
         if optimize :
             base-str = append(base-str, " -optimize")
         if verbose :
             base-str = append(base-str, " -verbose")
         if c-files?(cust-dir) :
             base-str = append(base-str, to-string("-ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
+        println("Calling \"%_\"" % [base-str])
         call-system(base-str)
     catch (e:Exception) : 
         println("Failed to compile!")
