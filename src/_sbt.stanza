@@ -93,7 +93,6 @@ defn main () :
         call-system("mkdir bin")
     if not silent :
         for stanza-file in stanza-source-files(cust-dir) do : ; yo im lazy as-fk
-            println("found stanza-source file  \"%_\"" % [stanza-file])
         if c-files?(cust-dir) :
             for c-file in c-files(cust-dir) do :
                 println("found c file \"%_\"" % [c-file])
