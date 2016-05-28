@@ -1,10 +1,20 @@
+;defpackage sbt :
+    ; import poet ; NO lit lit lit
+
 ; get files in cur dir...
-defn files (dir:String) -> List<String> :
-    call-system(to-string("touch /tmp/files.tmp & ls %_ | column -c 1 > /tmp/files.tmp" % [dir])) ; Save output of column'd ls with call sys..
+defn files (dir:String) -> Vector<String> :
+    call-system(to-string("touch /tmp/files.tmp & ls %_ > /tmp/files.tmp" % [dir])) ; Save output of column'd ls with call sys..
     val files-seq = split(slurp("/tmp/files.tmp"), "\n")  
-    val files = to-list(files-seq) ;Split by newline..
+    val files = to-vector<String>(files-seq) ;Split by newline..
     delete-file("/tmp/files.tmp")
-    map({append(append(dir, "/") when not contains(dir, "/") else append(dir, "/"), _)}, files)
+    for f in files do :
+        val ind = index-of!(files, f)
+        val n-file = append(append(dir, "/"), f)
+        if resolve-path(f) is String :
+            files[ind] = resolve-path(f) as String
+        else :
+            files[ind] = n-file
+    files
 
 defn stanza-source-files (dir:String) -> Seq<String> : 
     filter({suffix?(_, ".stanza")}, files(dir)) ;Filter the files, return those who only end in .stanza
@@ -19,7 +29,6 @@ defn stanza-source-files-no-dir (dir:String) -> Vector<String> :
             val last = data[length(data) - 1]
             add(vec, last)
     vec
-
 
 defn c-files? (dir:String) -> True|False :
     length(c-files(dir)) > 0    
@@ -40,14 +49,17 @@ defn output-file (dir:String) -> String:
 
 defn main () : 
     var optimize = false 
+    var eval = false
     var verbose = false 
     var dir = false 
     var silent = false
     var run = false
     var custom-name = false 
+    var eval-str = ""
     val args = command-line-arguments()
     var name-index = -1
     var dir-index = -1
+    var eval-index = -1
     for flag in args do :
         if prefix?(flag, "-") :
             if flag == "-h" or flag == "--help" :
@@ -58,12 +70,17 @@ defn main () :
                 println("-s / --silent | makes sbt shut up")
                 println("-v / --verbose | use verbose flag for compiler")
                 println("-o / --optimize | use optimize flag with compiler")
+                println("-e / --eval | evaluates all ")
                 println("-n / --name | use custom name for output file")
                 exit(0)
+            else if flag == "-e" or flag == "--eval" :
+                eval = true
+                eval-index = index-of!(args, flag)
+                eval-str = args[eval-index + 1]
             else if flag == "-o" or flag == "--optimize" :
                 optimize = true
             else if flag == "-v" or flag == "--verbose" :
-                verbose = false 
+                verbose = true
             else if flag == "-s" or flag == "--silent" :
                 silent = true
             else if flag == "-r" or flag == "--run" :
@@ -79,15 +96,12 @@ defn main () :
     var cust-dir = args[dir-index + 1] when dir else ""
     var o-file-data = to-array<String>(split(output-file(cust-dir), "."))[0]
     var o-file = append("bin/", o-file-data[1 to length(o-file-data)])
-    if not silent :
-        println("Compiling %_..." % [o-file])
     if custom-name :
         if length(args) < name-index or name-index < 0 :
             println("Found no custom name!")
             exit(1)
         else :
             o-file = args[name-index + 1]
-    println("output = \"%_\"" % [o-file])
     val timer = MillisecondTimer("compile-timer")
     if not file-exists?("bin") : ; we aren't cavemen are we?
         call-system("mkdir bin")
@@ -98,15 +112,35 @@ defn main () :
                 println("found c file \"%_\"" % [c-file])
     start(timer)
     try :
-        var base-str = to-string("stanza %_ -o %_" % [string-join(stanza-source-files(cust-dir), " "), o-file])
-        if optimize :
-            base-str = append(base-str, " -optimize")
-        if verbose :
-            base-str = append(base-str, " -verbose")
-        if c-files?(cust-dir) :
-            base-str = append(base-str, to-string("-ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
-        println("Calling \"%_\"" % [base-str])
-        call-system(base-str)
+        if eval :
+             ; print to file...
+            val out = to-string("/tmp/%_.out" % [current-time-us()])
+            val file = to-string("/tmp/%_-temp-eval.stanza" % [current-time-us()])
+            println("estr = \"%_\"" % [eval-str])
+            spit(file, eval-str)
+            ; compile real quick
+            var base-str = to-string("stanza %_ -o %_" % [file, out])
+            if optimize :
+                base-str = append(base-str, "-optimize")
+            if verbose :
+                base-str = append(base-str, "-verbose")
+            call-system(base-str)
+            ; now run
+            call-system(out)
+            ; now delete
+            delete-file(out)
+            delete-file(file) 
+            exit(0)
+        else :
+            var base-str = to-string("stanza %_ -o %_" % [string-join(stanza-source-files(cust-dir), " "), o-file])
+            if optimize :
+                base-str = append(base-str, " -optimize")
+            if verbose :
+                base-str = append(base-str, " -verbose")
+            if c-files?(cust-dir) :
+                base-str = append(base-str, to-string("-ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
+            println("Calling \"%_\"" % [base-str])
+            call-system(base-str)
     catch (e:Exception) : 
         println("Failed to compile!")
         exit(1)
