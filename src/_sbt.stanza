@@ -138,7 +138,7 @@ defn main () :
             if verbose :
                 base-str = append(base-str, " -verbose")
             if c-files?(cust-dir) :
-                base-str = append(base-str, to-string("-ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
+                base-str = append(base-str, to-string(" -ccfiles %_" % [string-join(c-files(cust-dir), " ")]))
             println("Calling \"%_\"" % [base-str])
             call-system(base-str)
     catch (e:Exception) : 
